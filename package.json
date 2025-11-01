@@ -1,0 +1,13 @@
+{
+  "name": "impostor",
+  "version": "1.0.0",
+  "description": "Prosta gra imprezowa Impostor w przeglądarce",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["game", "party", "multiplayer"],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs"
+}
