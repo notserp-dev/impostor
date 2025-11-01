@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Impostor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="background"></div>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="brand">
+          <h1>Impostor</h1>
+          <p>Imprezowa gra słowna inspirowana Gartic Phone</p>
+        </div>
+        <nav class="phase-track" id="phase-track">
+          <div class="phase-step active" data-phase="waiting">
+            <span class="name">Lobby</span>
+            <span class="description">Zbierz ekipę</span>
+          </div>
+          <div class="phase-step" data-phase="clues">
+            <span class="name">Wskazówki</span>
+            <span class="description">Jedno hasło</span>
+          </div>
+          <div class="phase-step" data-phase="discussion">
+            <span class="name">Dyskusja</span>
+            <span class="description">120 sekund rozmowy</span>
+          </div>
+          <div class="phase-step" data-phase="voting">
+            <span class="name">Głosowanie</span>
+            <span class="description">Wskaż podejrzanego</span>
+          </div>
+          <div class="phase-step" data-phase="impostor_guess">
+            <span class="name">Ostatnia szansa</span>
+            <span class="description">Strzał impostora</span>
+          </div>
+          <div class="phase-step" data-phase="ended">
+            <span class="name">Podsumowanie</span>
+            <span class="description">Kto wygrał?</span>
+          </div>
+        </nav>
+        <div class="role-chip" id="role-chip" hidden>
+          <span id="role-label"></span>
+          <span id="role-hint"></span>
+        </div>
+      </header>
+
+      <main class="app-body">
+        <section id="lobby-panel" class="view-card">
+          <div class="lobby-grid">
+            <form id="create-form" class="card form-card">
+              <h2>Utwórz lobby</h2>
+              <p class="hint">
+                Wybierz nazwę pokoju, zaproś znajomych i nadaj sobie pseudonim.
+              </p>
+              <label>
+                Nazwa lobby
+                <input type="text" name="name" placeholder="Przyjacielska runda" />
+              </label>
+              <label>
+                Twoja nazwa gracza
+                <input type="text" name="playerName" placeholder="Kapitan" required />
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" name="isPrivate" /> Prywatne lobby (wygeneruje kod)
+              </label>
+              <button type="submit">Stwórz pokój</button>
+            </form>
+
+            <form id="join-form" class="card form-card">
+              <h2>Dołącz do gry</h2>
+              <p class="hint">Do publicznych gier dołączysz z listy obok.</p>
+              <label>
+                ID lobby
+                <input type="text" name="lobbyId" placeholder="np. 10321" />
+              </label>
+              <span class="separator">lub</span>
+              <label>
+                Kod prywatny
+                <input type="text" name="code" placeholder="ABC123" />
+              </label>
+              <label>
+                Twoja nazwa gracza
+                <input type="text" name="playerName" placeholder="Badacz" required />
+              </label>
+              <button type="submit">Dołącz</button>
+            </form>
+
+            <div class="card list-card">
+              <div class="list-header">
+                <h2>Publiczne lobby</h2>
+                <p class="hint">Kliknij, aby błyskawicznie dołączyć.</p>
+              </div>
+              <ul id="public-lobbies" class="pill-list"></ul>
+              <p class="empty" id="no-lobbies">Brak otwartych lobby — bądź pierwszy!</p>
+            </div>
+          </div>
+
+          <section class="card how-to">
+            <h3>Jak przebiega runda?</h3>
+            <ol>
+              <li>
+                <strong>Wskazówka:</strong> Każdy (poza impostorem) widzi tajne słowo i wpisuje
+                krótkie skojarzenie.
+              </li>
+              <li>
+                <strong>Dyskusja:</strong> Wszyscy rozmawiają na czacie głosowym/tekstowym przez 120 sekund.
+              </li>
+              <li>
+                <strong>Głosowanie:</strong> Załoga próbuje wskazać impostora lub pominąć turę.
+              </li>
+              <li>
+                <strong>Ostatnia szansa:</strong> Jeśli impostor został złapany, może jeszcze odgadnąć hasło.
+              </li>
+            </ol>
+          </section>
+        </section>
+
+        <section id="game-panel" class="view-card" hidden>
+          <div class="game-header">
+            <div class="game-meta">
+              <h2 id="lobby-name"></h2>
+              <p id="lobby-code"></p>
+            </div>
+            <div class="round-chip" id="round-chip" hidden>
+              Runda <span id="round-counter">1</span>
+            </div>
+            <div class="self-tag" id="you-info"></div>
+            <button id="leave-btn" class="ghost">Opuść lobby</button>
+          </div>
+
+          <div class="game-grid">
+            <aside class="game-sidebar">
+              <div class="sidebar-card">
+                <h3>Załoga</h3>
+                <ul id="players-list"></ul>
+              </div>
+              <button id="start-btn" class="primary">Rozpocznij grę</button>
+              <div class="sidebar-card tips">
+                <h3>Podpowiedź fazy</h3>
+                <p id="phase-instructions">Czekamy na start rozgrywki.</p>
+              </div>
+            </aside>
+
+            <section class="game-stage">
+              <div id="status" class="phase-banner">
+                <h3 id="phase-title">Oczekiwanie w lobby</h3>
+                <p id="phase-subtitle">Gdy wszyscy są gotowi, host rozpoczyna rozgrywkę.</p>
+              </div>
+
+              <section id="clue-section" class="card stage-card" hidden>
+                <header>
+                  <h3>Twoja tajna karta</h3>
+                  <p id="turn-info"></p>
+                </header>
+                <div class="word-card">
+                  <p class="word" id="word-display"></p>
+                  <span class="word-hint" id="word-hint"></span>
+                </div>
+                <form id="clue-form" class="inline-form">
+                  <input
+                    type="text"
+                    name="clue"
+                    placeholder="Podaj krótkie skojarzenie (np. 'księżyc')"
+                    autocomplete="off"
+                  />
+                  <button type="submit">Wyślij wskazówkę</button>
+                </form>
+              </section>
+
+              <section id="clues-list" class="card stage-card" hidden>
+                <header>
+                  <h3>Skojarzenia rundy</h3>
+                  <p>Zobacz kolejność wpisów i spróbuj znaleźć impostora.</p>
+                </header>
+                <ul id="clues"></ul>
+              </section>
+
+              <section id="discussion" class="card stage-card" hidden>
+                <header>
+                  <h3>Dyskusja</h3>
+                  <p>Zostało <span id="discussion-timer">0</span> sekund.</p>
+                </header>
+                <p class="phase-copy">
+                  Wykorzystaj czat, by porównać skojarzenia i wyłapać osoby kluczące.
+                </p>
+              </section>
+
+              <section id="voting" class="card stage-card" hidden>
+                <header>
+                  <h3>Głosowanie</h3>
+                  <p>Zostało <span id="voting-timer">0</span> sekund.</p>
+                </header>
+                <form id="vote-form" class="inline-form">
+                  <select name="target"></select>
+                  <button type="submit">Oddaj głos</button>
+                </form>
+                <p class="phase-copy">Możesz też pominąć turę, jeśli nie masz pewności.</p>
+              </section>
+
+              <section id="impostor-guess" class="card stage-card" hidden>
+                <header>
+                  <h3>Ostatnia szansa impostora</h3>
+                  <p>Zostało <span id="guess-timer">0</span> sekund.</p>
+                </header>
+                <form id="guess-form" class="inline-form">
+                  <input type="text" name="guess" placeholder="Spróbuj odgadnąć hasło" autocomplete="off" />
+                  <button type="submit">Zgaduj!</button>
+                </form>
+                <p class="phase-copy">Udana próba = zwycięstwo impostora mimo eliminacji.</p>
+              </section>
+
+              <section id="end-section" class="card stage-card" hidden>
+                <header>
+                  <h3>Wynik gry</h3>
+                </header>
+                <p id="end-message"></p>
+              </section>
+            </section>
+
+            <aside class="chat-panel">
+              <div class="chat-card">
+                <h3>Czat tekstowy</h3>
+                <div id="chat-log"></div>
+                <form id="chat-form" class="inline-form">
+                  <input type="text" name="message" placeholder="Napisz wiadomość" autocomplete="off" />
+                  <button type="submit">Wyślij</button>
+                </form>
+              </div>
+            </aside>
+          </div>
+        </section>
+      </main>
+
+      <footer class="app-footer">
+        <small>Prototyp gry imprezowej "Impostor". Najlepiej działa z 4–8 graczami.</small>
+      </footer>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
