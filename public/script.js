@@ -56,14 +56,19 @@ const elements = {
   createForm: document.getElementById('create-form'),
   joinForm: document.getElementById('join-form'),
   publicList: document.getElementById('public-lobbies'),
+  noLobbies: document.getElementById('no-lobbies'),
   leaveBtn: document.getElementById('leave-btn'),
   lobbyName: document.getElementById('lobby-name'),
   lobbyCode: document.getElementById('lobby-code'),
   youInfo: document.getElementById('you-info'),
   playersList: document.getElementById('players-list'),
   startBtn: document.getElementById('start-btn'),
-  status: document.getElementById('status'),
+  phaseBanner: document.getElementById('status'),
+  phaseTitle: document.getElementById('phase-title'),
+  phaseSubtitle: document.getElementById('phase-subtitle'),
+  phaseInstructions: document.getElementById('phase-instructions'),
   wordDisplay: document.getElementById('word-display'),
+  wordHint: document.getElementById('word-hint'),
   turnInfo: document.getElementById('turn-info'),
   clueSection: document.getElementById('clue-section'),
   clueForm: document.getElementById('clue-form'),
@@ -81,6 +86,110 @@ const elements = {
   endMessage: document.getElementById('end-message'),
   chatForm: document.getElementById('chat-form'),
   chatLog: document.getElementById('chat-log'),
+  roleChip: document.getElementById('role-chip'),
+  roleLabel: document.getElementById('role-label'),
+  roleHint: document.getElementById('role-hint'),
+  roundChip: document.getElementById('round-chip'),
+  roundCounter: document.getElementById('round-counter'),
+  phaseSteps: Array.from(document.querySelectorAll('#phase-track .phase-step')),
+};
+
+const PHASE_SEQUENCE = ['waiting', 'clues', 'discussion', 'voting', 'impostor_guess', 'ended'];
+
+const PHASE_COPY = {
+  waiting: (view) => {
+    const you = view.you;
+    const total = view.players.length;
+    const missing = Math.max(0, 3 - total);
+    return {
+      title: 'Oczekiwanie w lobby',
+      subtitle: you.isHost
+        ? total >= 3
+          ? 'Kliknij „Rozpocznij grę”, gdy każdy jest gotowy.'
+          : `Potrzebujesz jeszcze ${missing} graczy, aby rozpocząć.`
+        : 'Host decyduje, kiedy zaczynamy. W międzyczasie zaproś znajomych.',
+      tip: view.code
+        ? `Udostępnij kod ${view.code}, by inni mogli dołączyć.`
+        : 'Każdy z listy publicznej może dołączyć do Twojego lobby.',
+    };
+  },
+  clues: (view) => {
+    const you = view.players.find((p) => p.isSelf) || view.you;
+    const isImpostor = Boolean(you?.isImpostor);
+    const yourTurn = view.round?.currentPlayer === state.playerId && you?.alive;
+    if (!you?.alive) {
+      return {
+        title: 'Obserwuj wskazówki',
+        subtitle: 'Zostałeś wyeliminowany — kibicuj ekipie i analizuj skojarzenia.',
+        tip: 'Nie zdradzaj tajnego hasła innym graczom.',
+      };
+    }
+    if (isImpostor) {
+      return {
+        title: 'Blefuj jak impostor',
+        subtitle: yourTurn
+          ? 'Wymyśl skojarzenie, które nie zdradzi, że nie znasz hasła.'
+          : 'Śledź wpisy załogi i przygotuj wiarygodną odpowiedź.',
+        tip: 'Inspiruj się cudzymi słowami, ale unikaj zbyt ogólnych lub identycznych odpowiedzi.',
+      };
+    }
+    return {
+      title: 'Czas na skojarzenia',
+      subtitle: yourTurn
+        ? 'Podaj krótkie słowo związane z hasłem, nie zdradzając go wprost.'
+        : 'Czytaj uważnie odpowiedzi, aby później wypatrzyć impostora.',
+      tip: 'Unikaj powtórzeń i zbyt oczywistych podpowiedzi — impostor też czyta.',
+    };
+  },
+  discussion: (view) => {
+    const you = view.players.find((p) => p.isSelf) || view.you;
+    return {
+      title: 'Czas dyskusji',
+      subtitle: you?.alive
+        ? 'Porównaj skojarzenia, zadawaj pytania i szukaj nieścisłości.'
+        : 'Jesteś poza grą — obserwuj, jak reszta analizuje wskazówki.',
+      tip: 'Czat tekstowy jest włączony tylko w tej fazie, więc wykorzystaj go maksymalnie.',
+    };
+  },
+  voting: (view) => {
+    const you = view.players.find((p) => p.isSelf) || view.you;
+    const voted = you?.vote;
+    return {
+      title: 'Głosowanie',
+      subtitle: you?.alive
+        ? voted
+          ? 'Oddałeś głos. Poczekaj, aż pozostali zakończą decyzję.'
+          : 'Wskaż podejrzanego lub pomiń, jeśli nie masz pewności.'
+        : 'Nie żyjesz — obserwuj, kogo wybiorą inni.',
+      tip: 'Jeśli głosy się podzielą, rozpocznie się kolejna runda z nowym hasłem.',
+    };
+  },
+  impostor_guess: (view) => {
+    const you = view.players.find((p) => p.isSelf) || view.you;
+    const isImpostor = Boolean(you?.isImpostor);
+    return {
+      title: 'Ostatnia szansa',
+      subtitle: isImpostor
+        ? 'Masz jedną próbę, by odgadnąć sekretne hasło.'
+        : 'Załoga czeka, czy impostorowi uda się odgadnąć hasło.',
+      tip: isImpostor
+        ? 'Wykorzystaj skojarzenia innych, aby jak najlepiej strzelić.'
+        : 'Jeśli impostor trafi, mimo eliminacji wygra tę partię.',
+    };
+  },
+  ended: (view) => {
+    const winner = view.round?.winner;
+    return {
+      title: 'Gra zakończona',
+      subtitle:
+        winner === 'impostor'
+          ? 'Impostor triumfuje! Zagrajcie jeszcze raz, aby się odegrać.'
+          : winner === 'crewmates'
+          ? 'Załoga zwyciężyła! Spróbujcie kolejnego hasła.'
+          : 'Runda dobiegła końca. Możesz rozpocząć kolejną grę.',
+      tip: 'Host może uruchomić nową rundę przyciskiem „Rozpocznij grę”.',
+    };
+  },
 };
 
 let timerInterval = null;
@@ -142,12 +251,10 @@ function render() {
   elements.lobbyPanel.hidden = true;
   elements.gamePanel.hidden = false;
 
-  elements.lobbyName.textContent = `${view.name}`;
-  elements.lobbyCode.textContent = view.code ? `Kod: ${view.code}` : '';
-  elements.youInfo.textContent = `${view.you.name}${view.you.isHost ? ' (Host)' : ''}`;
-
+  renderHeader(view);
+  renderPhaseTrack(view);
+  renderPhaseCopy(view);
   renderPlayers(view);
-  renderStatus(view);
   renderClueSection(view);
   renderClues(view);
   renderTimers(view);
@@ -156,77 +263,146 @@ function render() {
   renderEnd(view);
   renderChat(view.chat);
 
-  elements.startBtn.disabled = !view.you.isHost || view.state !== 'waiting';
+  elements.startBtn.disabled = !view.you.isHost || (view.state !== 'waiting' && view.state !== 'ended');
+}
+
+function renderHeader(view) {
+  elements.lobbyName.textContent = view.name;
+  elements.lobbyCode.textContent = view.code ? `Kod prywatny: ${view.code}` : `ID lobby: ${view.lobbyId}`;
+  elements.youInfo.textContent = `${view.you.name}${view.you.isHost ? ' · Host' : ''}`;
+
+  if (view.round?.number) {
+    elements.roundChip.hidden = false;
+    elements.roundCounter.textContent = view.round.number;
+  } else {
+    elements.roundChip.hidden = true;
+  }
+
+  renderRoleChip(view);
+}
+
+function renderRoleChip(view) {
+  const player = view.players.find((p) => p.isSelf);
+  if (!player) {
+    elements.roleChip.hidden = true;
+    return;
+  }
+  const roundActive = Boolean(view.round);
+  if (!roundActive) {
+    elements.roleChip.hidden = false;
+    elements.roleLabel.textContent = 'Oczekiwanie';
+    elements.roleHint.textContent = 'Rola zostanie przydzielona po rozpoczęciu gry.';
+    elements.roleChip.style.background = 'rgba(0, 0, 0, 0.35)';
+    elements.roleChip.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+    return;
+  }
+
+  const isImpostor = Boolean(player.isImpostor);
+  elements.roleChip.hidden = false;
+  elements.roleLabel.textContent = isImpostor ? 'Impostor' : 'Załogant';
+  elements.roleHint.textContent = isImpostor
+    ? 'Blefuj i zgadnij hasło na końcu.'
+    : 'Współpracuj, by namierzyć impostora.';
+  elements.roleChip.style.background = isImpostor
+    ? 'rgba(255, 93, 122, 0.4)'
+    : 'rgba(92, 255, 193, 0.25)';
+  elements.roleChip.style.borderColor = isImpostor ? 'rgba(255, 93, 122, 0.6)' : 'rgba(92, 255, 193, 0.5)';
+}
+
+function renderPhaseTrack(view) {
+  const activePhase = view.state;
+  const activeIndex = PHASE_SEQUENCE.indexOf(activePhase);
+  elements.phaseSteps.forEach((step) => {
+    const phase = step.dataset.phase;
+    const index = PHASE_SEQUENCE.indexOf(phase);
+    const isPast = index !== -1 && index < activeIndex;
+    const isActive = index === activeIndex;
+    step.classList.toggle('past', isPast);
+    step.classList.toggle('active', isActive);
+  });
+}
+
+function renderPhaseCopy(view) {
+  const generator = PHASE_COPY[view.state] || PHASE_COPY.waiting;
+  const copy = generator(view);
+  elements.phaseTitle.textContent = copy.title;
+  elements.phaseSubtitle.textContent = copy.subtitle;
+  elements.phaseInstructions.textContent = copy.tip;
 }
 
 function renderPlayers(view) {
   elements.playersList.innerHTML = '';
+  const current = view.round?.currentPlayer;
   view.players.forEach((player) => {
     const li = document.createElement('li');
     if (player.isSelf) li.classList.add('self');
-    li.innerHTML = `<span>${player.name}${player.isHost ? ' 👑' : ''}</span>`;
+    if (!player.alive) li.classList.add('eliminated');
+    if (current && current === player.id && view.state === 'clues') {
+      li.classList.add('current');
+    }
+
+    const name = document.createElement('div');
+    name.className = 'player-name';
+    name.textContent = player.name;
+    if (player.isHost) {
+      const hostBadge = document.createElement('span');
+      hostBadge.className = 'host-badge';
+      hostBadge.textContent = 'Host';
+      name.appendChild(hostBadge);
+    }
+
     const status = document.createElement('span');
-    status.className = 'status';
-    status.textContent = player.alive ? 'aktywny' : 'wyeliminowany';
+    status.className = 'player-status';
+    status.textContent = player.alive ? 'Aktywny' : 'Wyeliminowany';
+
+    li.appendChild(name);
     li.appendChild(status);
     elements.playersList.appendChild(li);
   });
 }
 
-function renderStatus(view) {
-  let text = '';
-  switch (view.state) {
-    case 'waiting':
-      text = 'Oczekiwanie na rozpoczęcie gry.';
-      break;
-    case 'clues':
-      if (view.round.currentPlayer === state.playerId) {
-        text = 'Twoja kolej na wpisanie wskazówki!';
-      } else {
-        const player = view.players.find((p) => p.id === view.round.currentPlayer);
-        text = player ? `Czekamy na wskazówkę od ${player.name}.` : 'Czekamy na wskazówkę.';
-      }
-      break;
-    case 'discussion':
-      text = 'Dyskusja w toku. Przekonaj innych!';
-      break;
-    case 'voting':
-      text = 'Czas głosowania! Wybierz podejrzanego lub pomiń.';
-      break;
-    case 'impostor_guess':
-      text = 'Impostor próbuje odgadnąć hasło!';
-      break;
-    case 'ended':
-      text = 'Gra zakończona.';
-      break;
-  }
-  const you = view.players.find((p) => p.isSelf);
-  if (you && !you.alive && view.state !== 'waiting' && view.state !== 'ended') {
-    text += ' Zostałeś wyeliminowany.';
-  }
-  elements.status.textContent = text;
-}
-
 function renderClueSection(view) {
   const round = view.round;
-  if (!round) {
+  const you = view.players.find((p) => p.isSelf);
+  if (!round || !you) {
     elements.clueSection.hidden = true;
     return;
   }
-  const word = round.word;
-  const isImpostor = view.players.find((p) => p.id === state.playerId)?.isImpostor;
-  const alive = view.players.find((p) => p.id === state.playerId)?.alive;
-
-  const showCard = !!round && alive;
+  const alive = you.alive;
+  const isImpostor = Boolean(you.isImpostor);
   const isYourTurn = view.state === 'clues' && round.currentPlayer === state.playerId && alive;
+  const showCard = alive || isImpostor || view.state !== 'waiting';
   elements.clueSection.hidden = !showCard;
-  elements.wordDisplay.textContent = word ? word : 'Jesteś Impostorem! Brak hasła.';
-  elements.turnInfo.textContent = isImpostor
-    ? 'Spróbuj wtopić się w tłum.'
-    : isYourTurn
-    ? 'Podaj słowo powiązane z hasłem.'
-    : 'Oczekuj na swoją kolej.';
+
+  const word = round.word;
+  if (isImpostor) {
+    elements.wordDisplay.textContent = '???';
+    elements.wordHint.textContent = 'Nie znasz hasła — improwizuj!';
+  } else if (word) {
+    elements.wordDisplay.textContent = word;
+    elements.wordHint.textContent = 'To tajne hasło dla załogi.';
+  } else {
+    elements.wordDisplay.textContent = '';
+    elements.wordHint.textContent = '';
+  }
+
+  if (!alive) {
+    elements.turnInfo.textContent = 'Obserwujesz tę rundę.';
+  } else if (view.state !== 'clues') {
+    elements.turnInfo.textContent = 'Czekamy na kolejną fazę.';
+  } else if (isYourTurn) {
+    elements.turnInfo.textContent = 'Twój ruch! Wpisz krótkie skojarzenie.';
+  } else {
+    const player = view.players.find((p) => p.id === round.currentPlayer);
+    elements.turnInfo.textContent = player
+      ? `Czekamy na wskazówkę od gracza ${player.name}.`
+      : 'Czekamy na kolejną wskazówkę.';
+  }
+
   elements.clueForm.hidden = !isYourTurn;
+  if (isYourTurn && elements.clueForm.clue) {
+    elements.clueForm.clue.focus();
+  }
 }
 
 function renderClues(view) {
@@ -241,7 +417,18 @@ function renderClues(view) {
   round.clues.forEach((entry, index) => {
     const player = view.players.find((p) => p.id === entry.playerId);
     const li = document.createElement('li');
-    li.innerHTML = `<span>${index + 1}. ${player ? player.name : 'Gracz'}</span><span>${entry.clue}</span>`;
+    li.dataset.order = index + 1;
+
+    const playerSpan = document.createElement('span');
+    playerSpan.className = 'clue-player';
+    playerSpan.textContent = player ? player.name : 'Gracz';
+
+    const clueSpan = document.createElement('span');
+    clueSpan.className = 'clue-text';
+    clueSpan.textContent = entry.clue;
+
+    li.appendChild(playerSpan);
+    li.appendChild(clueSpan);
     elements.cluesList.appendChild(li);
   });
 }
@@ -252,8 +439,8 @@ function renderTimers(view) {
   const votingEndsAt = view.round?.votingEndsAt;
   const guessEndsAt = view.round?.impostorGuessEndsAt;
 
-  elements.discussion.hidden = !(view.state === 'discussion');
-  elements.voting.hidden = !(view.state === 'voting');
+  elements.discussion.hidden = view.state !== 'discussion';
+  elements.voting.hidden = view.state !== 'voting';
   elements.impostorGuess.hidden = !(view.state === 'impostor_guess' && view.round?.canGuess);
 
   const hasTimers = discussionEndsAt || votingEndsAt || guessEndsAt;
@@ -304,6 +491,9 @@ function renderVoting(view) {
   const voted = you?.vote;
   elements.voteForm.querySelector('button').disabled = !!voted;
   select.disabled = !!voted;
+  if (voted && voted !== 'skip') {
+    select.value = voted;
+  }
 }
 
 function renderGuess(view) {
@@ -335,6 +525,9 @@ function renderChat(messages) {
   const enabled = ['discussion', 'waiting'].includes(state.view?.state);
   elements.chatForm.querySelector('input').disabled = !enabled;
   elements.chatForm.querySelector('button').disabled = !enabled;
+  elements.chatForm.querySelector('input').placeholder = enabled
+    ? 'Napisz wiadomość'
+    : 'Czat aktywny tylko w lobby i dyskusji';
 }
 
 function addChatMessage(entry) {
@@ -359,6 +552,7 @@ async function refreshLobbyList() {
         li.addEventListener('click', () => quickJoin(lobby.id));
         elements.publicList.appendChild(li);
       });
+    elements.noLobbies.hidden = data.lobbies.length > 0;
   } catch (error) {
     console.error(error);
   }
@@ -396,6 +590,7 @@ function resetState() {
   }
   elements.gamePanel.hidden = true;
   elements.lobbyPanel.hidden = false;
+  elements.roleChip.hidden = true;
 }
 
 elements.createForm.addEventListener('submit', async (event) => {
@@ -429,6 +624,7 @@ elements.clueForm.addEventListener('submit', async (event) => {
   if (!clue) return;
   const res = await api.submitClue(clue);
   if (res.error) alert(res.error);
+  event.target.reset();
 });
 
 elements.voteForm.addEventListener('submit', async (event) => {
