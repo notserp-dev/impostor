@@ -46,7 +46,7 @@ body {
 
 .app-header {
   display: grid;
-  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) minmax(0, 220px);
   gap: 1.5rem;
   align-items: center;
   padding: 1.5rem 2rem;
@@ -74,6 +74,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
+  flex-wrap: wrap;
   gap: 0.75rem;
 }
 
@@ -140,6 +142,8 @@ body {
   line-height: 1.1;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  justify-self: end;
+  text-align: right;
 }
 
 .role-chip span:first-child {

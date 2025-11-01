@@ -364,15 +364,17 @@ function renderPlayers(view) {
 function renderClueSection(view) {
   const round = view.round;
   const you = view.players.find((p) => p.isSelf);
-  if (!round || !you) {
+  const isCluePhase = view.state === 'clues';
+  if (!round || !you || !isCluePhase) {
     elements.clueSection.hidden = true;
+    elements.clueForm.hidden = true;
+    elements.clueForm.reset();
     return;
   }
   const alive = you.alive;
   const isImpostor = Boolean(you.isImpostor);
-  const isYourTurn = view.state === 'clues' && round.currentPlayer === state.playerId && alive;
-  const showCard = alive || isImpostor || view.state !== 'waiting';
-  elements.clueSection.hidden = !showCard;
+  const isYourTurn = round.currentPlayer === state.playerId && alive;
+  elements.clueSection.hidden = false;
 
   const word = round.word;
   if (isImpostor) {
@@ -388,8 +390,6 @@ function renderClueSection(view) {
 
   if (!alive) {
     elements.turnInfo.textContent = 'Obserwujesz tę rundę.';
-  } else if (view.state !== 'clues') {
-    elements.turnInfo.textContent = 'Czekamy na kolejną fazę.';
   } else if (isYourTurn) {
     elements.turnInfo.textContent = 'Twój ruch! Wpisz krótkie skojarzenie.';
   } else {
@@ -440,8 +440,6 @@ function renderTimers(view) {
   const guessEndsAt = view.round?.impostorGuessEndsAt;
 
   elements.discussion.hidden = view.state !== 'discussion';
-  elements.voting.hidden = view.state !== 'voting';
-  elements.impostorGuess.hidden = !(view.state === 'impostor_guess' && view.round?.canGuess);
 
   const hasTimers = discussionEndsAt || votingEndsAt || guessEndsAt;
   updateTimers();
@@ -468,8 +466,10 @@ function renderTimers(view) {
 }
 
 function renderVoting(view) {
-  if (view.state !== 'voting') {
+  const you = view.players.find((p) => p.isSelf);
+  if (view.state !== 'voting' || !you?.alive) {
     elements.voting.hidden = true;
+    elements.voteForm.reset();
     return;
   }
   elements.voting.hidden = false;
@@ -487,7 +487,6 @@ function renderVoting(view) {
       option.textContent = player.name;
       select.appendChild(option);
     });
-  const you = view.players.find((p) => p.isSelf);
   const voted = you?.vote;
   elements.voteForm.querySelector('button').disabled = !!voted;
   select.disabled = !!voted;
@@ -497,8 +496,11 @@ function renderVoting(view) {
 }
 
 function renderGuess(view) {
-  if (!(view.state === 'impostor_guess' && view.round?.canGuess)) {
+  const you = view.players.find((p) => p.isSelf);
+  const canGuess = view.state === 'impostor_guess' && view.round?.canGuess && you?.isImpostor;
+  if (!canGuess) {
     elements.impostorGuess.hidden = true;
+    elements.guessForm.reset();
     return;
   }
   elements.impostorGuess.hidden = false;
